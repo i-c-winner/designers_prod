@@ -1,0 +1,18 @@
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Local env
+.env
+.env.*
+
+# Python / build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local development artifacts
+development/.DS_Store

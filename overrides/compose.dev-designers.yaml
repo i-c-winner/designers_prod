@@ -1,0 +1,40 @@
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:8.3
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      JWT_ENABLED: "false"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      ALLOW_META_IP_ADDRESS: "true"
+
+  backend:
+    volumes:
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers:/home/frappe/frappe-bench/apps/designers
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/editor_proposal:/home/frappe/frappe-bench/apps/editor_proposal
+
+  frontend:
+    volumes:
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers:/home/frappe/frappe-bench/apps/designers
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/editor_proposal:/home/frappe/frappe-bench/apps/editor_proposal
+
+  websocket:
+    volumes:
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers:/home/frappe/frappe-bench/apps/designers
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/editor_proposal:/home/frappe/frappe-bench/apps/editor_proposal
+
+  queue-short:
+    volumes:
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers:/home/frappe/frappe-bench/apps/designers
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/editor_proposal:/home/frappe/frappe-bench/apps/editor_proposal
+
+  queue-long:
+    volumes:
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers:/home/frappe/frappe-bench/apps/designers
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/editor_proposal:/home/frappe/frappe-bench/apps/editor_proposal
+
+  scheduler:
+    volumes:
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers:/home/frappe/frappe-bench/apps/designers
+      - /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/editor_proposal:/home/frappe/frappe-bench/apps/editor_proposal

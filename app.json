@@ -1,0 +1,5 @@
+[
+  { "url": "https://github.com/frappe/erpnext", "branch": "version-16" },
+  { "url": "https://github.com/i-c-winner/ecklet_erp.git", "branch": "main" }
+]
+
