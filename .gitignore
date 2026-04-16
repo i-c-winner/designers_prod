@@ -1,18 +1,20 @@
-# macOS / IDE
-.DS_Store
-.idea/
-.vscode/
+# Ignore everything by default
+*
 
-# Local env
+# Keep deployment essentials only
+!.gitignore
+!README.md
+!Makefile
+!compose.yaml
+!scripts/
+!scripts/deploy-prod.sh
+!overrides/
+!overrides/compose.mariadb.yaml
+!overrides/compose.redis.yaml
+!overrides/compose.prod.yaml
+!env/
+!env/.env.prod.example
+
+# Never commit real secrets
+env/.env.prod
 .env
-.env.*
-
-# Python / build
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-
-# Local development artifacts
-development/.DS_Store

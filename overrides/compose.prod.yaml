@@ -1,0 +1,4 @@
+# Production override intentionally minimal.
+# Keep this file for prod-specific tweaks (resources, replicas, hardened settings).
+
+services: {}

@@ -13,6 +13,8 @@ x-depends-on-configurator: &depends_on_configurator
 
 x-backend-defaults: &backend_defaults
   <<: [*depends_on_configurator, *customizable_image]
+  environment:
+    FRAPPE_DB_PASSWORD: ${DB_PASSWORD}
   volumes:
     - sites:/home/frappe/frappe-bench/sites
     - sites_assets:/home/frappe/frappe-bench/sites/assets
@@ -27,23 +29,36 @@ services:
       - -c
     # add redis_socketio for backward compatibility
     command:
-      - >
-        ls -1 apps > sites/apps.txt;
-        bench set-config -g db_host $$DB_HOST;
-        bench set-config -gp db_port $$DB_PORT;
-        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
-        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
-        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
-        bench set-config -gp socketio_port $$SOCKETIO_PORT;
-        bench set-config -g chromium_path /usr/bin/chromium-headless-shell;
+      - |
+        set -e
+        ls -1 apps > sites/apps.txt
+        bench set-config -g db_host "$$DB_HOST"
+        bench set-config -gp db_port "$$DB_PORT"
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE"
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE"
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE"
+        bench set-config -gp socketio_port "$$SOCKETIO_PORT"
+        bench set-config -g chromium_path /usr/bin/chromium-headless-shell
         if [ ! -f "sites/$$BOOTSTRAP_SITE_NAME/site_config.json" ]; then
-          bench new-site "$$BOOTSTRAP_SITE_NAME" --mariadb-root-password "$$DB_ROOT_PASSWORD" --mariadb-user-host-login-scope "$$DB_USER_HOST_LOGIN_SCOPE" --admin-password "$$ADMIN_PASSWORD";
-          bench --site "$$BOOTSTRAP_SITE_NAME" install-app erpnext;
+          bench new-site "$$BOOTSTRAP_SITE_NAME" --mariadb-root-password "$$DB_ROOT_PASSWORD" --db-password "$$DB_PASSWORD" --mariadb-user-host-login-scope "$$DB_USER_HOST_LOGIN_SCOPE" --admin-password "$$ADMIN_PASSWORD"
+          bench --site "$$BOOTSTRAP_SITE_NAME" install-app erpnext
           if [ -d apps/designers ]; then
-            bench --site "$$BOOTSTRAP_SITE_NAME" install-app designers;
-          fi;
-        fi;
-        bench use "$$BOOTSTRAP_SITE_NAME";
+            bench --site "$$BOOTSTRAP_SITE_NAME" install-app designers
+          fi
+        fi
+        site_db_user=$$(jq -r '.db_user // .db_name // empty' "sites/$$BOOTSTRAP_SITE_NAME/site_config.json")
+        site_db_name=$$(jq -r '.db_name // empty' "sites/$$BOOTSTRAP_SITE_NAME/site_config.json")
+        if [ -n "$$site_db_user" ] && [ -n "$$site_db_name" ]; then
+          # Always keep site_config aligned with .env password.
+          bench --site "$$BOOTSTRAP_SITE_NAME" set-config db_password "$$DB_PASSWORD"
+          # Try to sync MariaDB user password as well; don't crash bootstrap if root remote auth isn't available yet.
+          if mariadb -h "$$DB_HOST" -P "$$DB_PORT" -u root -p"$$DB_ROOT_PASSWORD" -e "SELECT 1;" >/dev/null 2>&1; then
+            mariadb -h "$$DB_HOST" -P "$$DB_PORT" -u root -p"$$DB_ROOT_PASSWORD" -e "CREATE USER IF NOT EXISTS '$$site_db_user'@'%' IDENTIFIED BY '$$DB_PASSWORD'; ALTER USER '$$site_db_user'@'%' IDENTIFIED BY '$$DB_PASSWORD'; GRANT ALL PRIVILEGES ON \`$$site_db_name\`.* TO '$$site_db_user'@'%'; FLUSH PRIVILEGES;"
+          else
+            echo "WARN: cannot connect to MariaDB as root from configurator; skipped DB user password sync."
+          fi
+        fi
+        bench use "$$BOOTSTRAP_SITE_NAME"
     environment:
       DB_HOST: ${DB_HOST:-}
       DB_PORT: ${DB_PORT:-}
@@ -52,6 +67,7 @@ services:
       SOCKETIO_PORT: 9000
       BOOTSTRAP_SITE_NAME: ${BOOTSTRAP_SITE_NAME:-ecklet}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       DB_USER_HOST_LOGIN_SCOPE: ${DB_USER_HOST_LOGIN_SCOPE:-%}
     depends_on: {}
