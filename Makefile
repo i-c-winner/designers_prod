@@ -7,7 +7,7 @@ FRAPPE_BRANCH ?= version-16
 ERPNEXT_PATH ?= https://github.com/frappe/erpnext
 ERPNEXT_BRANCH ?= version-16
 APPS_JSON_BENCH ?= /Users/dmitriy/Projects/work/erp/frappe_docker/apps.json
-NO_CACHE ?= 0
+NO_CACHE ?= 1
 PLATFORM ?= linux/amd64
 
 ENV ?= dev
