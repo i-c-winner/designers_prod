@@ -1,7 +1,13 @@
 SHELL := /bin/bash
 
-CUSTOM_IMAGE ?= icwinner/erpnext-designers
-CUSTOM_TAG ?= v16-dev-001
+ENV ?= dev
+ENV_FILE ?= env/.env.$(ENV)
+
+ENV_CUSTOM_IMAGE := $(strip $(shell [ -f "$(ENV_FILE)" ] && sed -n 's/^CUSTOM_IMAGE=//p' "$(ENV_FILE)" | tail -n1))
+ENV_CUSTOM_TAG := $(strip $(shell [ -f "$(ENV_FILE)" ] && sed -n 's/^CUSTOM_TAG=//p' "$(ENV_FILE)" | tail -n1))
+
+CUSTOM_IMAGE ?= $(if $(ENV_CUSTOM_IMAGE),$(ENV_CUSTOM_IMAGE),icwinner/erpnext-designers)
+CUSTOM_TAG ?= $(if $(ENV_CUSTOM_TAG),$(ENV_CUSTOM_TAG),v16-dev-001)
 FRAPPE_PATH ?= https://github.com/frappe/frappe
 FRAPPE_BRANCH ?= version-16
 ERPNEXT_PATH ?= https://github.com/frappe/erpnext
@@ -10,15 +16,11 @@ APPS_JSON_BENCH ?= /Users/dmitriy/Projects/work/erp/frappe_docker/apps.json
 NO_CACHE ?= 1
 PLATFORM ?= linux/amd64
 
-ENV ?= dev
-ENV_FILE ?= env/.env.$(ENV)
-ifneq ("$(wildcard $(ENV_FILE))","")
-include $(ENV_FILE)
-endif
 ENV_OVERRIDE ?= overrides/compose.$(ENV).yaml
 COMPOSE_ENV = docker compose --env-file $(ENV_FILE) -f compose.yaml -f overrides/compose.mariadb.yaml -f overrides/compose.redis.yaml -f $(ENV_OVERRIDE)
 EXPORT_APP ?= designers
 EXPORT_HOST_APP_PATH ?= /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers
+LOCAL_DESIGNERS_APP_PATH ?= /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers
 
 SITE_PROD ?= ecklet
 REMOTE_HOST ?= root@your-server
@@ -28,7 +30,7 @@ REMOTE_DIR ?= /opt/frappe_docker
 
 help:
 	@echo "Targets:"
-	@echo "  make ENV=dev env-up         - Поднять окружение и синхронизировать assets"
+	@echo "  make ENV=dev env-up         - Поднять dev окружение (локальный designers bind mount) и синхронизировать assets"
 	@echo "  make ENV=dev env-down       - Остановить окружение"
 	@echo "  make ENV=dev env-logs       - Логи окружения"
 	@echo "  make ENV=dev env-ps         - Статус контейнеров"
@@ -44,6 +46,7 @@ help:
 env-up:
 	@test -f "$(ENV_FILE)" || (echo "Missing $(ENV_FILE)"; exit 1)
 	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
+	@if [ "$(ENV)" = "dev" ]; then test -d "$(LOCAL_DESIGNERS_APP_PATH)" || (echo "Missing LOCAL_DESIGNERS_APP_PATH: $(LOCAL_DESIGNERS_APP_PATH)"; exit 1); fi
 	$(COMPOSE_ENV) up -d
 	$(MAKE) ENV=$(ENV) env-sync-assets
 
