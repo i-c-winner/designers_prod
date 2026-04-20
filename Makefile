@@ -26,7 +26,7 @@ SITE_PROD ?= ecklet
 REMOTE_HOST ?= root@your-server
 REMOTE_DIR ?= /opt/frappe_docker
 
-.PHONY: help env-up env-down env-logs env-ps env-sync-assets env-import-all env-export-all build-image-from-bench push-image release deploy-prod-script deploy-remote
+.PHONY: help env-up env-down env-logs env-ps env-sync-assets env-migrate-cache env-import-all env-export-all build-image-from-bench push-image release deploy-prod-script deploy-remote
 
 help:
 	@echo "Targets:"
@@ -35,6 +35,7 @@ help:
 	@echo "  make ENV=dev env-logs       - Логи окружения"
 	@echo "  make ENV=dev env-ps         - Статус контейнеров"
 	@echo "  make ENV=dev env-sync-assets- Принудительно синхронизировать assets backend -> frontend"
+	@echo "  make ENV=dev env-migrate-cache - Применить код без пересборки образа (migrate + clear-cache)"
 	@echo "  make ENV=dev env-import-all - Применить весь код в сайт (migrate + clear-cache + sync assets)"
 	@echo "  make ENV=dev env-export-all - Выгрузить изменения из UI в код (fixtures)"
 	@echo "  make build-image-from-bench - Собрать образ из apps.json"
@@ -94,6 +95,19 @@ env-sync-assets:
 	$(COMPOSE_ENV) restart backend websocket frontend >/dev/null; \
 	rm -rf "$$tmp_dir"; \
 	echo "Assets rebuilt, synced, and services restarted"
+
+env-migrate-cache:
+	@test -f "$(ENV_FILE)" || (echo "Missing $(ENV_FILE)"; exit 1)
+	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
+	@site_name="$$(grep -E '^BOOTSTRAP_SITE_NAME=' $(ENV_FILE) | tail -n1 | cut -d= -f2- | tr -d '"')"; \
+	if [ -z "$$site_name" ]; then \
+		echo "BOOTSTRAP_SITE_NAME is empty in $(ENV_FILE)"; \
+		exit 1; \
+	fi; \
+	$(COMPOSE_ENV) exec -T backend bench --site "$$site_name" migrate; \
+	$(COMPOSE_ENV) exec -T backend bench --site "$$site_name" clear-cache; \
+	$(COMPOSE_ENV) exec -T backend bench --site "$$site_name" clear-website-cache || true; \
+	echo "Migration and cache clear completed for site: $$site_name"
 
 env-import-all:
 	@test -f "$(ENV_FILE)" || (echo "Missing $(ENV_FILE)"; exit 1)
