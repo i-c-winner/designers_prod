@@ -22,7 +22,7 @@ EXPORT_APP ?= designers
 EXPORT_HOST_APP_PATH ?= /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers
 LOCAL_DESIGNERS_APP_PATH ?= /Users/dmitriy/Projects/work/erp/myerp/frapper-bench/apps/designers
 
-SITE_PROD ?= ecklet
+SITE_PROD ?= erp.ecklet.online
 REMOTE_HOST ?= root@your-server
 REMOTE_DIR ?= /opt/frappe_docker
 
