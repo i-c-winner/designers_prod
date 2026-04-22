@@ -58,6 +58,9 @@ services:
             echo "WARN: cannot connect to MariaDB as root from configurator; skipped DB user password sync."
           fi
         fi
+        if [ -n "$$SITE_HOST_NAME" ]; then
+          bench --site "$$BOOTSTRAP_SITE_NAME" set-config host_name "$$SITE_HOST_NAME"
+        fi
         bench use "$$BOOTSTRAP_SITE_NAME"
     environment:
       DB_HOST: ${DB_HOST:-}
@@ -70,6 +73,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       DB_USER_HOST_LOGIN_SCOPE: ${DB_USER_HOST_LOGIN_SCOPE:-%}
+      SITE_HOST_NAME: ${SITE_HOST_NAME:-}
     depends_on: {}
     restart: on-failure
 

@@ -26,7 +26,7 @@ SITE_PROD ?= erp.ecklet.online
 REMOTE_HOST ?= root@your-server
 REMOTE_DIR ?= /opt/frappe_docker
 
-.PHONY: help env-up env-down env-logs env-ps env-sync-assets env-migrate-cache env-import-all env-export-all build-image-from-bench push-image release deploy-prod-script deploy-remote
+.PHONY: help env-up env-down env-logs env-ps env-fix-ws-origin env-restart-realtime env-sync-assets env-migrate-cache env-import-all env-export-all build-image-from-bench push-image release deploy-prod-script deploy-remote
 
 help:
 	@echo "Targets:"
@@ -34,6 +34,8 @@ help:
 	@echo "  make ENV=dev env-down       - Остановить окружение"
 	@echo "  make ENV=dev env-logs       - Логи окружения"
 	@echo "  make ENV=dev env-ps         - Статус контейнеров"
+	@echo "  make ENV=dev env-fix-ws-origin - Починить websocket origin для localhost в dev frontend"
+	@echo "  make ENV=dev env-restart-realtime - Перезапустить frontend/websocket и повторно применить ws-origin фикс"
 	@echo "  make ENV=dev env-sync-assets- Принудительно синхронизировать assets backend -> frontend"
 	@echo "  make ENV=dev env-migrate-cache - Применить код без пересборки образа (migrate + clear-cache)"
 	@echo "  make ENV=dev env-import-all - Применить весь код в сайт (migrate + clear-cache + sync assets)"
@@ -49,6 +51,7 @@ env-up:
 	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
 	@if [ "$(ENV)" = "dev" ]; then test -d "$(LOCAL_DESIGNERS_APP_PATH)" || (echo "Missing LOCAL_DESIGNERS_APP_PATH: $(LOCAL_DESIGNERS_APP_PATH)"; exit 1); fi
 	$(COMPOSE_ENV) up -d
+	@if [ "$(ENV)" = "dev" ]; then $(MAKE) ENV=$(ENV) env-fix-ws-origin; fi
 	$(MAKE) ENV=$(ENV) env-sync-assets
 
 env-down:
@@ -66,6 +69,34 @@ env-ps:
 	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
 	$(COMPOSE_ENV) ps
 
+env-fix-ws-origin:
+	@test -f "$(ENV_FILE)" || (echo "Missing $(ENV_FILE)"; exit 1)
+	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
+	@set -e; \
+	frontend_cid="$$($(COMPOSE_ENV) ps -q frontend)"; \
+	if [ -z "$$frontend_cid" ]; then \
+		echo "Skip env-fix-ws-origin: frontend container not found"; \
+		exit 0; \
+	fi; \
+	site_name="$$(grep -E '^BOOTSTRAP_SITE_NAME=' $(ENV_FILE) | tail -n1 | cut -d= -f2- | tr -d '\"')"; \
+	if [ -z "$$site_name" ]; then \
+		echo "BOOTSTRAP_SITE_NAME is empty in $(ENV_FILE)"; \
+		exit 1; \
+	fi; \
+	$(COMPOSE_ENV) exec -T -u root frontend bash -lc "set -e; conf=/etc/nginx/conf.d/frappe.conf; test -f \"\$$conf\" || exit 0; \
+		sed -i '/location \\/socket.io {/,/}/ s|proxy_set_header Origin .*;|proxy_set_header Origin \\\$$proxy_x_forwarded_proto://frontend:8080;|' \"\$$conf\"; \
+		sed -i '/location \\/socket.io {/,/}/ s|proxy_set_header Host .*;|proxy_set_header Host frontend:8080;|' \"\$$conf\"; \
+		sed -i '/location @webserver {/,/}/ s|proxy_set_header Host .*;|proxy_set_header Host \\\$$host;|' \"\$$conf\"; \
+		/usr/sbin/nginx -s reload"; \
+	echo "Websocket origin/auth fix applied for dev frontend"
+
+env-restart-realtime:
+	@test -f "$(ENV_FILE)" || (echo "Missing $(ENV_FILE)"; exit 1)
+	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
+	$(COMPOSE_ENV) restart frontend websocket >/dev/null
+	@if [ "$(ENV)" = "dev" ]; then $(MAKE) ENV=$(ENV) env-fix-ws-origin; fi
+	@echo "Realtime services restarted"
+
 env-sync-assets:
 	@test -f "$(ENV_FILE)" || (echo "Missing $(ENV_FILE)"; exit 1)
 	@test -f "$(ENV_OVERRIDE)" || (echo "Missing $(ENV_OVERRIDE)"; exit 1)
@@ -78,21 +109,26 @@ env-sync-assets:
 	fi; \
 	$(COMPOSE_ENV) exec -T backend bench build; \
 	tmp_dir="$$(mktemp -d /tmp/frappe-assets-sync.XXXXXX)"; \
-	mkdir -p "$$tmp_dir/frappe-dist" "$$tmp_dir/erpnext-dist"; \
+	mkdir -p "$$tmp_dir/frappe-dist" "$$tmp_dir/erpnext-dist" "$$tmp_dir/designers-assets"; \
 	docker cp "$$backend_cid:/home/frappe/frappe-bench/sites/assets/frappe/dist/." "$$tmp_dir/frappe-dist"; \
 	docker cp "$$backend_cid:/home/frappe/frappe-bench/sites/assets/erpnext/dist/." "$$tmp_dir/erpnext-dist"; \
+	docker cp "$$backend_cid:/home/frappe/frappe-bench/sites/assets/designers/." "$$tmp_dir/designers-assets"; \
 	docker cp "$$backend_cid:/home/frappe/frappe-bench/sites/assets/assets.json" "$$tmp_dir/assets.json"; \
-	$(COMPOSE_ENV) exec -T -u root frontend bash -lc "mkdir -p /home/frappe/frappe-bench/sites/assets/frappe/dist /home/frappe/frappe-bench/sites/assets/erpnext/dist && rm -rf /home/frappe/frappe-bench/sites/assets/frappe/dist/* /home/frappe/frappe-bench/sites/assets/erpnext/dist/*"; \
+	$(COMPOSE_ENV) exec -T -u root frontend bash -lc "mkdir -p /home/frappe/frappe-bench/sites/assets/frappe/dist /home/frappe/frappe-bench/sites/assets/erpnext/dist /home/frappe/frappe-bench/sites/assets/designers && rm -rf /home/frappe/frappe-bench/sites/assets/frappe/dist/* /home/frappe/frappe-bench/sites/assets/erpnext/dist/* /home/frappe/frappe-bench/sites/assets/designers/*"; \
 	docker cp "$$tmp_dir/frappe-dist/." "$$frontend_cid:/home/frappe/frappe-bench/sites/assets/frappe/dist"; \
 	docker cp "$$tmp_dir/erpnext-dist/." "$$frontend_cid:/home/frappe/frappe-bench/sites/assets/erpnext/dist"; \
+	docker cp "$$tmp_dir/designers-assets/." "$$frontend_cid:/home/frappe/frappe-bench/sites/assets/designers"; \
 	docker cp "$$tmp_dir/assets.json" "$$frontend_cid:/home/frappe/frappe-bench/sites/assets/assets.json"; \
-	$(COMPOSE_ENV) exec -T -u root frontend bash -lc "chown -R frappe:frappe /home/frappe/frappe-bench/sites/assets/frappe/dist /home/frappe/frappe-bench/sites/assets/erpnext/dist /home/frappe/frappe-bench/sites/assets/assets.json"; \
+	$(COMPOSE_ENV) exec -T -u root frontend bash -lc "chown -R frappe:frappe /home/frappe/frappe-bench/sites/assets/frappe/dist /home/frappe/frappe-bench/sites/assets/erpnext/dist /home/frappe/frappe-bench/sites/assets/designers /home/frappe/frappe-bench/sites/assets/assets.json"; \
 	site_name="$$(grep -E '^BOOTSTRAP_SITE_NAME=' $(ENV_FILE) | tail -n1 | cut -d= -f2- | tr -d '\"')"; \
 	if [ -n "$$site_name" ]; then \
 		$(COMPOSE_ENV) exec -T backend bench --site "$$site_name" clear-cache || true; \
 		$(COMPOSE_ENV) exec -T backend bench --site "$$site_name" clear-website-cache || true; \
 	fi; \
 	$(COMPOSE_ENV) restart backend websocket frontend >/dev/null; \
+	if [ "$(ENV)" = "dev" ]; then \
+		$(MAKE) ENV=$(ENV) env-fix-ws-origin; \
+	fi; \
 	rm -rf "$$tmp_dir"; \
 	echo "Assets rebuilt, synced, and services restarted"
 
