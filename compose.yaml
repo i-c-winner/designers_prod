@@ -81,7 +81,7 @@ services:
     <<: *backend_defaults
 #    platform: linux/amd64
     environment:
-      FRAPPE_SITE_NAME_HEADER: ecklet
+      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME_HEADER:-$$host}
 
   frontend:
     <<: *customizable_image
@@ -111,7 +111,7 @@ services:
     <<: [*depends_on_configurator, *customizable_image]
 #    platform: linux/amd64
     environment:
-      FRAPPE_SITE_NAME_HEADER: ecklet
+      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME_HEADER:-$$host}
     command:
       - node
       - /home/frappe/frappe-bench/apps/frappe/socketio.js
