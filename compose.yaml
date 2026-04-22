@@ -80,6 +80,8 @@ services:
   backend:
     <<: *backend_defaults
 #    platform: linux/amd64
+    environment:
+      FRAPPE_SITE_NAME_HEADER: ecklet
 
   frontend:
     <<: *customizable_image
@@ -108,6 +110,8 @@ services:
   websocket:
     <<: [*depends_on_configurator, *customizable_image]
 #    platform: linux/amd64
+    environment:
+      FRAPPE_SITE_NAME_HEADER: ecklet
     command:
       - node
       - /home/frappe/frappe-bench/apps/frappe/socketio.js
