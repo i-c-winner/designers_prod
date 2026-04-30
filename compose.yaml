@@ -113,6 +113,8 @@ services:
 #    platform: linux/amd64
     environment:
       FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME_HEADER:-ecklet}
+    ports:
+      - "9000:9000"
     command:
       - node
       - /home/frappe/frappe-bench/apps/frappe/socketio.js
